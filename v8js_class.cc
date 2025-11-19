@@ -854,7 +854,7 @@ static void v8js_script_dtor(zend_resource *rsrc) /* {{{ */
 
 /* ## Static methods ## */
 
-static v8::StartupData createSnapshotDataBlob(v8::SnapshotCreator *snapshot_creator, zend_string *str) /* {{{ */
+static v8::StartupData createSnapshotDataBlob(v8::SnapshotCreator *snapshot_creator, zend_string *str, std::string &error_message) /* {{{ */
 {
 	v8::Isolate *isolate = snapshot_creator->GetIsolate();
 
@@ -870,6 +870,19 @@ static v8::StartupData createSnapshotDataBlob(v8::SnapshotCreator *snapshot_crea
 
 		if (script.IsEmpty() || script.ToLocalChecked()->Run(context).IsEmpty())
 		{
+			if (try_catch.HasCaught()) {
+				v8::String::Utf8Value exception(isolate, try_catch.Exception());
+				error_message = std::string(*exception);
+				
+				v8::Local<v8::Message> message = try_catch.Message();
+				if (!message.IsEmpty()) {
+					v8::String::Utf8Value filename(isolate, message->GetScriptResourceName());
+					int linenum = message->GetLineNumber(context).FromJust();
+					error_message += " in " + std::string(*filename) + ":" + std::to_string(linenum);
+				}
+			} else {
+				error_message = "Unknown error during snapshot creation";
+			}
 			return {nullptr, 0};
 		}
 
@@ -900,10 +913,15 @@ static PHP_METHOD(V8Js, createSnapshot)
 
 	v8::Isolate *isolate = v8::Isolate::Allocate();
 	v8::SnapshotCreator snapshot_creator(isolate);
-	v8::StartupData snapshot_blob = createSnapshotDataBlob(&snapshot_creator, script);
+	std::string error_message;
+	v8::StartupData snapshot_blob = createSnapshotDataBlob(&snapshot_creator, script, error_message);
 
 	if (!snapshot_blob.data) {
-		php_error_docref(NULL, E_WARNING, "Failed to create V8 heap snapshot.  Check $embed_source for errors.");
+		if (!error_message.empty()) {
+			php_error_docref(NULL, E_WARNING, "Failed to create V8 heap snapshot: %s", error_message.c_str());
+		} else {
+			php_error_docref(NULL, E_WARNING, "Failed to create V8 heap snapshot. Check $embed_source for errors.");
+		}
 		RETURN_FALSE;
 	}
 
