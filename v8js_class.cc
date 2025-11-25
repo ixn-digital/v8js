@@ -25,6 +25,7 @@
 #include "v8js_v8object_class.h"
 #include "v8js_object_export.h"
 #include "v8js_timer.h"
+#include "v8js_esmodule.h"
 
 extern "C" {
 #include "php.h"
@@ -79,8 +80,8 @@ static void v8js_free_storage(zend_object *object) /* {{{ */
 
 	zend_object_std_dtor(&c->std);
 
-	zval_ptr_dtor(&c->module_normaliser);
 	zval_ptr_dtor(&c->module_loader);
+	zval_ptr_dtor(&c->module_resolver);
 	zval_ptr_dtor(&c->exception_filter);
 
 	/* Delete PHP global object from JavaScript */
@@ -170,13 +171,12 @@ static void v8js_free_storage(zend_object *object) /* {{{ */
 	}
 	c->script_objects.~vector();
 
-	/* Clear persistent handles in module cache */
-	for (std::map<char *, v8js_persistent_value_t>::iterator it = c->modules_loaded.begin();
-		 it != c->modules_loaded.end(); ++it) {
-		efree(it->first);
-		it->second.Reset();
+	/* Clear ES module cache */
+	for (auto &pair : c->esmodules_loaded) {
+		pair.second.Reset();
 	}
-	c->modules_loaded.~map();
+	c->esmodules_loaded.~map();
+	c->esmodules_status.~map();
 
 	if(c->isolate) {
 		/* c->isolate is initialized by V8Js::__construct, but __wakeup calls
@@ -214,7 +214,8 @@ static zend_object* v8js_new(zend_class_entry *ce) /* {{{ */
 	new(&c->array_tmpl) v8::Global<v8::FunctionTemplate>();
 
 	new(&c->modules_stack) std::vector<char*>();
-	new(&c->modules_loaded) std::map<char *, v8js_persistent_value_t, cmp_str>;
+	new(&c->esmodules_loaded) std::map<std::string, v8::Global<v8::Module>>();
+	new(&c->esmodules_status) std::map<std::string, v8::Module::Status>();
 
 	new(&c->template_cache) std::map<const zend_string *,v8js_function_tmpl_t>();
 	new(&c->accessor_list) std::vector<v8js_accessor_ctx *>();
@@ -312,8 +313,8 @@ static PHP_METHOD(V8Js, __construct)
 	c->memory_limit = 0;
 	c->memory_limit_hit = false;
 
-	ZVAL_NULL(&c->module_normaliser);
 	ZVAL_NULL(&c->module_loader);
+	ZVAL_NULL(&c->module_resolver);
 	ZVAL_NULL(&c->exception_filter);
 
 	// Isolate execution
@@ -343,6 +344,9 @@ static PHP_METHOD(V8Js, __construct)
 		zend_throw_exception(php_ce_v8js_exception, "Failed to create V8 context.", 0);
 		return;
 	}
+
+	// Register dynamic import() callback for ES modules
+	isolate->SetHostImportModuleDynamicallyCallback(v8js_module_dynamic_import_callback);
 
 	context->SetAlignedPointerInEmbedderData(1, c);
 	context->Global()->Set(context, V8JS_SYM("global"), context->Global());
@@ -676,19 +680,26 @@ static PHP_METHOD(V8Js, executeScript)
 }
 /* }}} */
 
-/* {{{ proto void V8Js::setModuleNormaliser(string base, string module_id)
+/* {{{ proto mixed V8Js::executeModule(string script [, string identifier [, int flags [, int time_limit [, int memory_limit]]]])
  */
-static PHP_METHOD(V8Js, setModuleNormaliser)
+static PHP_METHOD(V8Js, executeModule)
 {
-	v8js_ctx *c;
-	zval *callable;
+	zend_string *str = NULL, *identifier = NULL;
+	long flags = V8JS_FLAG_NONE, time_limit = 0, memory_limit = 0;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &callable) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "S|S!lll", &str, &identifier, &flags, &time_limit, &memory_limit) == FAILURE) {
 		return;
 	}
 
-	c = Z_V8JS_CTX_OBJ_P(getThis());
-	ZVAL_COPY(&c->module_normaliser, callable);
+	if (memory_limit < 0) {
+		zend_throw_exception(php_ce_v8js_exception,
+				"memory_limit must not be negative", 0);
+		return;
+	}
+
+	if (!v8js_execute_module_string(getThis(), str, identifier, flags, time_limit, static_cast<size_t>(memory_limit), &return_value)) {
+		RETURN_FALSE;
+	}
 }
 /* }}} */
 
@@ -705,6 +716,22 @@ static PHP_METHOD(V8Js, setModuleLoader)
 
 	c = Z_V8JS_CTX_OBJ_P(getThis());
 	ZVAL_COPY(&c->module_loader, callable);
+}
+/* }}} */
+
+/* {{{ proto void V8Js::setModuleResolver(callable resolver)
+ */
+static PHP_METHOD(V8Js, setModuleResolver)
+{
+	v8js_ctx *c;
+	zval *callable;
+
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &callable) == FAILURE) {
+		return;
+	}
+
+	c = Z_V8JS_CTX_OBJ_P(getThis());
+	ZVAL_COPY(&c->module_resolver, callable);
 }
 /* }}} */
 
@@ -964,16 +991,23 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_executescript, 0, 0, 1)
 	ZEND_ARG_INFO(0, memory_limit)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_executemodule, 0, 0, 1)
+	ZEND_ARG_INFO(0, script)
+	ZEND_ARG_INFO(0, identifier)
+	ZEND_ARG_INFO(0, flags)
+	ZEND_ARG_INFO(0, time_limit)
+	ZEND_ARG_INFO(0, memory_limit)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_checkstring, 0, 0, 1)
 	ZEND_ARG_INFO(0, script)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_setmodulenormaliser, 0, 0, 2)
-	ZEND_ARG_INFO(0, base)
-	ZEND_ARG_INFO(0, module_id)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_setmoduleloader, 0, 0, 1)
+	ZEND_ARG_INFO(0, callable)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_setmoduleloader, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_v8js_setmoduleresolver, 0, 0, 1)
 	ZEND_ARG_INFO(0, callable)
 ZEND_END_ARG_INFO()
 
@@ -1005,8 +1039,9 @@ const zend_function_entry v8js_methods[] = { /* {{{ */
 	PHP_ME(V8Js,	executeString,			arginfo_v8js_executestring,			ZEND_ACC_PUBLIC)
 	PHP_ME(V8Js,	compileString,			arginfo_v8js_compilestring,			ZEND_ACC_PUBLIC)
 	PHP_ME(V8Js,    executeScript,			arginfo_v8js_executescript,			ZEND_ACC_PUBLIC)
-	PHP_ME(V8Js,	setModuleNormaliser,	arginfo_v8js_setmodulenormaliser,	ZEND_ACC_PUBLIC)
+	PHP_ME(V8Js,    executeModule,			arginfo_v8js_executemodule,			ZEND_ACC_PUBLIC)
 	PHP_ME(V8Js,	setModuleLoader,		arginfo_v8js_setmoduleloader,		ZEND_ACC_PUBLIC)
+	PHP_ME(V8Js,	setModuleResolver,		arginfo_v8js_setmoduleresolver,		ZEND_ACC_PUBLIC)
 	PHP_ME(V8Js,	setExceptionFilter,		arginfo_v8js_setexceptionfilter,		ZEND_ACC_PUBLIC)
 	PHP_ME(V8Js,	setTimeLimit,			arginfo_v8js_settimelimit,			ZEND_ACC_PUBLIC)
 	PHP_ME(V8Js,	setMemoryLimit,			arginfo_v8js_setmemorylimit,		ZEND_ACC_PUBLIC)

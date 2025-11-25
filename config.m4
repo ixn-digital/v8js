@@ -254,6 +254,7 @@ int main ()
     v8js_class.cc			\
     v8js_commonjs.cc		\
     v8js_convert.cc			\
+    v8js_esmodule.cc		\
     v8js_exceptions.cc		\
     v8js_generator_export.cc	\
     v8js_main.cc			\

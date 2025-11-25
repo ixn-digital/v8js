@@ -51,12 +51,14 @@ struct v8js_ctx {
   v8js_object_tmpl_t global_template;
   v8js_function_tmpl_t array_tmpl;
 
-  zval module_normaliser;
   zval module_loader;
+  zval module_resolver;
   zval exception_filter;
 
-  std::vector<char *> modules_stack;
-  std::map<char *, v8js_persistent_value_t, cmp_str> modules_loaded;
+  /* ES Module support */
+  std::vector<char *> modules_stack;  // Used for circular dependency detection in ES modules
+  std::map<std::string, v8::Global<v8::Module>> esmodules_loaded;
+  std::map<std::string, v8::Module::Status> esmodules_status;
   std::map<const zend_string *,v8js_function_tmpl_t> template_cache;
 
   std::map<zend_object *, v8js_persistent_obj_t> weak_objects;
