@@ -41,6 +41,12 @@ tests/*.php
 tests/*.sh
 tests/*.mem
 
+# Test262 results
+tests/test262/test262-results*.json
+tests/test262/test262-failures*.jsonl
+test262-results*.json
+test262-failures*.jsonl
+
 tmp-php.ini
 
 coverage_report/**

@@ -249,21 +249,22 @@ int main ()
   AC_DEFINE([V8_DEPRECATION_WARNINGS], [1], [Enable compiler warnings when using V8_DEPRECATED apis.])
 
   PHP_ADD_INCLUDE($V8_INCLUDE_DIR)
+  PHP_ADD_INCLUDE(src)
+  
   PHP_NEW_EXTENSION(v8js, [	\
-    v8js_array_access.cc	\
-    v8js_class.cc			\
-    v8js_commonjs.cc		\
-    v8js_convert.cc			\
-    v8js_esmodule.cc		\
-    v8js_exceptions.cc		\
-    v8js_generator_export.cc	\
-    v8js_main.cc			\
-    v8js_methods.cc			\
-    v8js_object_export.cc	\
-	v8js_timer.cc			\
-	v8js_v8.cc				\
-    v8js_v8object_class.cc	\
-    v8js_variables.cc		\
+    src/v8js_array_access.cc	\
+    src/v8js_class.cc			\
+    src/v8js_convert.cc			\
+    src/v8js_esmodule.cc		\
+    src/v8js_exceptions.cc		\
+    src/v8js_generator_export.cc	\
+    src/v8js_main.cc			\
+    src/v8js_methods.cc			\
+    src/v8js_object_export.cc	\
+    src/v8js_timer.cc			\
+    src/v8js_v8.cc				\
+    src/v8js_v8object_class.cc	\
+    src/v8js_variables.cc		\
   ], $ext_shared, , "$ac_cv_v8_narrowing -std="$ac_cv_v8_cstd)
 
   PHP_ADD_MAKEFILE_FRAGMENT
