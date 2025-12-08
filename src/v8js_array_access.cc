@@ -61,6 +61,11 @@ V8JS_INTERCEPTED v8js_array_access_getter(uint32_t index, const v8::PropertyCall
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Object> self = info.Holder();
 
+	// V8 13+ sandbox safety check
+	if (!v8js_is_valid_wrapped_object(self)) {
+		return V8JS_INTERCEPTED_NO;
+	}
+
 	zend_object *object = reinterpret_cast<zend_object *>(self->GetAlignedPointerFromInternalField(1));
 
 	zval zvalue;
@@ -84,6 +89,11 @@ V8JS_INTERCEPTED v8js_array_access_setter(uint32_t index, v8::Local<v8::Value> v
 {
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Object> self = info.Holder();
+
+	// V8 13+ sandbox safety check
+	if (!v8js_is_valid_wrapped_object(self)) {
+		return V8JS_INTERCEPTED_NO;
+	}
 
 	zend_object *object = reinterpret_cast<zend_object *>(self->GetAlignedPointerFromInternalField(1));
 
@@ -159,6 +169,12 @@ static void v8js_array_access_length(v8::Local<v8::String> property, const v8::P
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Object> self = info.Holder();
 
+	// V8 13+ sandbox safety check
+	if (!v8js_is_valid_wrapped_object(self)) {
+		info.GetReturnValue().Set(V8JS_INT(0));
+		return;
+	}
+
 	zend_object *object = reinterpret_cast<zend_object *>(self->GetAlignedPointerFromInternalField(1));
 
 	int length = v8js_array_access_get_count_result(object);
@@ -170,6 +186,11 @@ V8JS_INTERCEPTED v8js_array_access_deleter(uint32_t index, const v8::PropertyCal
 {
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Object> self = info.Holder();
+
+	// V8 13+ sandbox safety check
+	if (!v8js_is_valid_wrapped_object(self)) {
+		return V8JS_INTERCEPTED_NO;
+	}
 
 	zend_object *object = reinterpret_cast<zend_object *>(self->GetAlignedPointerFromInternalField(1));
 
@@ -189,6 +210,11 @@ V8JS_INTERCEPTED v8js_array_access_query(uint32_t index, const v8::PropertyCallb
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Object> self = info.Holder();
 
+	// V8 13+ sandbox safety check
+	if (!v8js_is_valid_wrapped_object(self)) {
+		return V8JS_INTERCEPTED_NO;
+	}
+
 	zend_object *object = reinterpret_cast<zend_object *>(self->GetAlignedPointerFromInternalField(1));
 
 	/* If index is set, then return an integer encoding a v8::PropertyAttribute;
@@ -207,6 +233,12 @@ void v8js_array_access_enumerator(const v8::PropertyCallbackInfo<v8::Array>& inf
 {
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Object> self = info.Holder();
+
+	// V8 13+ sandbox safety check
+	if (!v8js_is_valid_wrapped_object(self)) {
+		info.GetReturnValue().Set(v8::Array::New(isolate, 0));
+		return;
+	}
 
 	zend_object *object = reinterpret_cast<zend_object *>(self->GetAlignedPointerFromInternalField(1));
 

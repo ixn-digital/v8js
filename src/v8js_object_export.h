@@ -17,6 +17,8 @@
 v8::Local<v8::Value> v8js_hash_to_jsobj(zval *value, v8::Isolate *isolate);
 v8::Local<v8::Value> v8js_propagate_exception(v8js_ctx *ctx);
 
+/* Helper to safely check if an object is a wrapped PHP object (V8 13+ sandbox compatible) */
+bool v8js_is_valid_wrapped_object(v8::Local<v8::Object> obj);
 
 typedef enum {
 	V8JS_PROP_GETTER,

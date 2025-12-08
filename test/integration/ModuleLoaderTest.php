@@ -1,6 +1,6 @@
 <?php
 /**
- * Test module loader functionality and CommonJS support
+ * Test ES module functionality with import/export
  */
 
 require_once __DIR__ . '/../PHPIntegrationTest.php';
@@ -8,7 +8,7 @@ require_once __DIR__ . '/../PHPIntegrationTest.php';
 class ModuleLoaderTest extends PHPIntegrationTest
 {
     /**
-     * Test basic module loader setup
+     * Test basic ES module import
      */
     public static function testBasicModuleLoader()
     {
@@ -17,18 +17,18 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'test') {
-                return 'exports.value = 42;';
+            if ($module === 'subdir/module.mjs') {
+                return 'export const value = 99;';
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var mod = require("test");
-            mod.value;
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { value } from "./subdir/module.mjs";
+            export { value };
+        ', 'main.mjs');
         
-        self::assertEquals(42, $result);
+        self::assertEquals(99, $ns->value);
     }
     
     /**
@@ -42,19 +42,25 @@ class ModuleLoaderTest extends PHPIntegrationTest
         
         // Set first loader
         $v8->setModuleLoader(function($module) {
-            return 'exports.version = 1;';
+            if ($module === 'test1.mjs') {
+                return 'export const version = 1;';
+            }
+            return null;
         });
         
-        $result1 = $v8->executeString('require("test").version;', 'test1.js', V8Js::FLAG_FORCE_ARRAY);
-        self::assertEquals(1, $result1);
+        $ns1 = $v8->executeModule('import { version } from "test1.mjs"; export { version };', 'main1.mjs');
+        self::assertEquals(1, $ns1->version);
         
-        // Replace with new loader
+        // Replace loader
         $v8->setModuleLoader(function($module) {
-            return 'exports.version = 2;';
+            if ($module === 'test2.mjs') {
+                return 'export const version = 2;';
+            }
+            return null;
         });
         
-        $result2 = $v8->executeString('require("test2").version;', 'test2.js', V8Js::FLAG_FORCE_ARRAY);
-        self::assertEquals(2, $result2);
+        $ns2 = $v8->executeModule('import { version } from "test2.mjs"; export { version };', 'main2.mjs');
+        self::assertEquals(2, $ns2->version);
     }
     
     /**
@@ -66,23 +72,23 @@ class ModuleLoaderTest extends PHPIntegrationTest
         
         $v8 = new V8Js();
         
-        // Normaliser that adds .js extension
-        $v8->setModuleNormaliser(function($base, $module) {
-            if (strpos($module, '.js') === false) {
-                return $module . '.js';
+        // Normaliser that adds .mjs extension
+        $v8->setModuleResolver(function($base, $module) {
+            if (strpos($module, '.mjs') === false) {
+                return $module . '.mjs';
             }
             return $module;
         });
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'mymodule.js') {
-                return 'exports.name = "normalized";';
+            if ($module === 'mymodule.mjs') {
+                return 'export const name = "normalized";';
             }
             return null;
         });
         
-        $result = $v8->executeString('require("mymodule").name;', 'main.js', V8Js::FLAG_FORCE_ARRAY);
-        self::assertEquals('normalized', $result);
+        $ns = $v8->executeModule('import { name } from "mymodule"; export { name };', 'main.mjs');
+        self::assertEquals('normalized', $ns->name);
     }
     
     /**
@@ -95,22 +101,23 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'utils/math' => 'exports.add = function(a, b) { return a + b; };',
-            'utils/string' => 'exports.upper = function(s) { return s.toUpperCase(); };',
+            'utils/math.mjs' => 'export const add = (a, b) => a + b;',
+            'utils/string.mjs' => 'export const upper = (s) => s.toUpperCase();',
         ];
         
         $v8->setModuleLoader(function($module) use ($modules) {
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var math = require("utils/math");
-            var str = require("utils/string");
-            [math.add(2, 3), str.upper("hello")];
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { add } from "utils/math.mjs";
+            import { upper } from "utils/string.mjs";
+            export const sum = add(2, 3);
+            export const uppercased = upper("hello");
+        ', 'main.mjs');
         
-        self::assertEquals(5, $result[0]);
-        self::assertEquals('HELLO', $result[1]);
+        self::assertEquals(5, $ns->sum);
+        self::assertEquals('HELLO', $ns->uppercased);
     }
     
     /**
@@ -127,22 +134,22 @@ class ModuleLoaderTest extends PHPIntegrationTest
         };
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'bridge') {
-                return 'exports.callPHP = function(x) { return PHP.phpFunction(x); };';
+            if ($module === 'bridge.mjs') {
+                return 'export const callPHP = (x) => PHP.phpFunction(x);';
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var bridge = require("bridge");
-            bridge.callPHP(21);
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { callPHP } from "bridge.mjs";
+            export const result = callPHP(21);
+        ', 'main.mjs');
         
-        self::assertEquals(42, $result);
+        self::assertEquals(42, $ns->result);
     }
     
     /**
-     * Test module returning object
+     * Test module with default export
      */
     public static function testModuleReturningObject()
     {
@@ -151,22 +158,22 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'config') {
-                return 'module.exports = { host: "localhost", port: 8080 };';
+            if ($module === 'config.mjs') {
+                return 'export default { host: "localhost", port: 8080 };';
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var config = require("config");
-            config.host + ":" + config.port;
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import config from "config.mjs";
+            export const url = config.host + ":" + config.port;
+        ', 'main.mjs');
         
-        self::assertEquals('localhost:8080', $result);
+        self::assertEquals('localhost:8080', $ns->url);
     }
     
     /**
-     * Test module returning function
+     * Test module exporting function
      */
     public static function testModuleReturningFunction()
     {
@@ -175,18 +182,18 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'factory') {
-                return 'module.exports = function(name) { return "Hello " + name; };';
+            if ($module === 'factory.mjs') {
+                return 'export default (name) => "Hello " + name;';
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var greet = require("factory");
-            greet("World");
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import greet from "factory.mjs";
+            export const greeting = greet("World");
+        ', 'main.mjs');
         
-        self::assertEquals('Hello World', $result);
+        self::assertEquals('Hello World', $ns->greeting);
     }
     
     /**
@@ -199,24 +206,24 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'counter') {
+            if ($module === 'counter.mjs') {
                 return '
-                    var count = 0;
-                    exports.increment = function() { return ++count; };
-                    exports.get = function() { return count; };
+                    let count = 0;
+                    export const increment = () => ++count;
+                    export const get = () => count;
                 ';
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var counter = require("counter");
-            counter.increment();
-            counter.increment();
-            counter.get();
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { increment, get } from "counter.mjs";
+            increment();
+            increment();
+            export const count = get();
+        ', 'main.mjs');
         
-        self::assertEquals(2, $result);
+        self::assertEquals(2, $ns->count);
     }
     
     /**
@@ -229,14 +236,14 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'error') {
+            if ($module === 'error.mjs') {
                 throw new Exception('Module not found');
             }
             return null;
         });
         
         self::assertThrows(V8JsException::class, function() use ($v8) {
-            $v8->executeString('require("error");', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+            $v8->executeModule('import "./error.mjs"; export const x = 1;', 'main.mjs');
         });
     }
     
@@ -250,27 +257,31 @@ class ModuleLoaderTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         // Normaliser handles relative paths
-        $v8->setModuleNormaliser(function($base, $module) {
-            if ($module[0] === '.') {
-                $basePath = dirname($base);
-                return $basePath . '/' . $module;
+        $v8->setModuleResolver(function($base, $module) {
+            if ($module[0] === '.' && $module[1] === '/') {
+                // ./file.mjs relative to base
+                // base is already the directory (e.g., "lib" for "lib/index.mjs")
+                if (empty($base) || $base === '.') {
+                    return substr($module, 2); // Remove ./
+                }
+                return $base . '/' . substr($module, 2);
             }
             return $module;
         });
         
         $v8->setModuleLoader(function($module) {
             $modules = [
-                'lib/index' => 'exports.value = require("./utils").helper();',
-                'lib/utils' => 'exports.helper = function() { return "works"; };',
+                'lib/index.mjs' => 'import { helper } from "./utils.mjs"; export const value = helper();',
+                'lib/utils.mjs' => 'export const helper = () => "works";',
             ];
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var lib = require("lib/index");
-            lib.value;
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { value } from "lib/index.mjs";
+            export { value };
+        ', 'main.mjs');
         
-        self::assertEquals('works', $result);
+        self::assertEquals('works', $ns->value);
     }
 }

@@ -422,6 +422,10 @@ static PHP_METHOD(V8Js, __construct)
 	} ZEND_HASH_FOREACH_END();
 
 	/* Add pointer to zend object */
+	/* For V8 13+ sandbox compatibility, we must initialize BOTH internal fields.
+	 * Field 0 is set to a non-null sentinel value to satisfy V8's sandbox validation.
+	 * Field 1 contains the actual zend_object pointer. */
+	php_obj->SetAlignedPointerInInternalField(0, static_cast<void*>(Z_OBJ_P(getThis())));
 	php_obj->SetAlignedPointerInInternalField(1, Z_OBJ_P(getThis()));
 
 	/* Export public methods */

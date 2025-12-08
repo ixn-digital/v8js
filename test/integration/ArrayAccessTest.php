@@ -13,7 +13,7 @@ class ArrayAccessTest extends PHPIntegrationTest
     public static function testArrayAccessBasic()
     {
         self::skipIfNoV8js();
-        self::skipIf(!ini_get('v8js.use_array_access'), 'v8js.use_array_access must be enabled');
+        ini_set('v8js.use_array_access', '1');
         
         $arr = new class implements ArrayAccess, Countable {
             private $data = [1, 2, 3, 4, 5];
@@ -52,7 +52,6 @@ class ArrayAccessTest extends PHPIntegrationTest
     public static function testArrayAccessWithJSMethods()
     {
         self::skipIfNoV8js();
-        self::skipIf(!ini_get('v8js.use_array_access'), 'v8js.use_array_access must be enabled');
         
         $numbers = new class implements ArrayAccess, Countable {
             private $data = [10, 20, 30, 40, 50];
@@ -99,7 +98,6 @@ class ArrayAccessTest extends PHPIntegrationTest
     public static function testArrayAccessWrite()
     {
         self::skipIfNoV8js();
-        self::skipIf(!ini_get('v8js.use_array_access'), 'v8js.use_array_access must be enabled');
         
         $arr = new class implements ArrayAccess, Countable {
             public $data = [];
@@ -145,7 +143,6 @@ class ArrayAccessTest extends PHPIntegrationTest
     public static function testArrayAccessCustomLogic()
     {
         self::skipIfNoV8js();
-        self::skipIf(!ini_get('v8js.use_array_access'), 'v8js.use_array_access must be enabled');
         
         // Array that returns reversed index values
         $reversed = new class implements ArrayAccess, Countable {

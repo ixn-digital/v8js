@@ -26,6 +26,8 @@ class ResourceLimitsTest extends PHPIntegrationTest
     
     /**
      * Test memory limit exceeded
+     * Note: Very low memory limits may cause V8 to crash fatally instead of throwing
+     * an exception. Use a reasonable limit that allows V8 to detect and throw.
      */
     public static function testMemoryLimitExceeded()
     {
@@ -33,15 +35,16 @@ class ResourceLimitsTest extends PHPIntegrationTest
         
         $v8 = new V8Js();
         
-        // Set very small memory limit
-        $v8->setMemoryLimit(100 * 1024); // 100KB
+        // Set a low but reasonable memory limit (5MB)
+        // Too low and V8 will crash fatally instead of throwing
+        $v8->setMemoryLimit(5 * 1024 * 1024);
         
         self::assertThrows(V8JsException::class, function() use ($v8) {
-            // Try to allocate large array
+            // Try to allocate a large array that exceeds the limit
             $v8->executeString('
                 var huge = [];
-                for (var i = 0; i < 1000000; i++) {
-                    huge.push(new Array(1000));
+                for (var i = 0; i < 100000; i++) {
+                    huge.push(new Array(100).fill(i));
                 }
             ');
         });

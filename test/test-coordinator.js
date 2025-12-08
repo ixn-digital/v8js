@@ -6,7 +6,7 @@
  * concurrently in separate PHP processes, handling crashes and collecting results.
  * 
  * Usage:
- *   node test262-coordinator.js [options]
+ *   node test-coordinator.js [options]
  * 
  * Options:
  *   --path=<path>        Specific test file or directory to run
@@ -498,7 +498,7 @@ function parseArgs() {
 Test262 and PHP Integration Test Coordinator for V8js
 
 Usage:
-  node test262-coordinator.js [options]
+  node test-coordinator.js [options]
 
 Options:
   --path=<path>        Specific test file or directory to run
@@ -519,19 +519,19 @@ Test Types:
 
 Examples:
   # Run all tests (Test262 + PHP integration) with 8 workers
-  node test262-coordinator.js --concurrency=8
+  node test-coordinator.js --concurrency=8
 
   # Run only PHP integration tests
-  node test262-coordinator.js --type=integration
+  node test-coordinator.js --type=integration
 
   # Run specific test directory
-  node test262-coordinator.js --path=test/integration/
+  node test-coordinator.js --path=test/integration/
 
   # Run tests matching a pattern
-  node test262-coordinator.js --filter="arrow-function"
+  node test-coordinator.js --filter="arrow-function"
 
   # Run with custom PHP
-  node test262-coordinator.js --php=/usr/local/bin/php --extension=/usr/local/lib/php/extensions/v8js.so
+  node test-coordinator.js --php=/usr/local/bin/php --extension=/usr/local/lib/php/extensions/v8js.so
 `);
             process.exit(0);
         } else if (arg.startsWith('--')) {

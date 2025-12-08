@@ -111,8 +111,10 @@ class MultipleInstancesTest extends PHPIntegrationTest
     {
         self::skipIfNoV8js();
         
-        $v8_1 = new V8Js('PHP', [], ['com', 'net'], false);
-        $v8_2 = new V8Js('PHP', [], ['org'], false);
+        // Note: Extensions parameter is not implemented in this version of V8JS
+        // Just test that multiple instances work independently
+        $v8_1 = new V8Js('PHP', []);
+        $v8_2 = new V8Js('PHP', []);
         
         // Both should work independently
         $result1 = $v8_1->executeString('2 + 2');

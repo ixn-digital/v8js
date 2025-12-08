@@ -34,7 +34,7 @@ class SnapshotTest extends PHPIntegrationTest
             };
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         $result = $v8->executeString('Utils.add(2, 3)');
         self::assertEquals(5, $result);
@@ -52,7 +52,7 @@ class SnapshotTest extends PHPIntegrationTest
             function cube(x) { return x * x * x; }
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         $result = $v8->executeString('[square(5), cube(3)]');
         self::assertEquals([25, 27], $result);
@@ -80,7 +80,7 @@ class SnapshotTest extends PHPIntegrationTest
             })();
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         $area = $v8->executeString('MathLib.circleArea(10)');
         self::assertTrue(abs($area - 314.159) < 0.01);
@@ -102,7 +102,7 @@ class SnapshotTest extends PHPIntegrationTest
             };
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         $result = $v8->executeString('[VERSION, MAX_SIZE, CONFIG.timeout]');
         self::assertEquals(['1.0.0', 100, 5000], $result);
@@ -131,7 +131,7 @@ class SnapshotTest extends PHPIntegrationTest
             }
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         $result = $v8->executeString('
             var c = new Counter();
@@ -160,7 +160,7 @@ class SnapshotTest extends PHPIntegrationTest
         
         // With snapshot
         $snapshot = V8Js::createSnapshot($libraryCode);
-        $v8_with = new V8Js('PHP', [], [], true, $snapshot);
+        $v8_with = new V8Js('PHP', [], $snapshot);
         $result_with = $v8_with->executeString('LargeLib.method1()');
         
         // Without snapshot
@@ -181,8 +181,8 @@ class SnapshotTest extends PHPIntegrationTest
         
         $snapshot = V8Js::createSnapshot('var shared = "snapshot";');
         
-        $v8_1 = new V8Js('PHP', [], [], true, $snapshot);
-        $v8_2 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8_1 = new V8Js('PHP', [], $snapshot);
+        $v8_2 = new V8Js('PHP', [], $snapshot);
         
         $result1 = $v8_1->executeString('shared');
         $result2 = $v8_2->executeString('shared');
@@ -200,8 +200,8 @@ class SnapshotTest extends PHPIntegrationTest
         
         $snapshot = V8Js::createSnapshot('var counter = 0;');
         
-        $v8_1 = new V8Js('PHP', [], [], true, $snapshot);
-        $v8_2 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8_1 = new V8Js('PHP', [], $snapshot);
+        $v8_2 = new V8Js('PHP', [], $snapshot);
         
         $v8_1->executeString('counter = 10;');
         $v8_2->executeString('counter = 20;');
@@ -228,7 +228,7 @@ class SnapshotTest extends PHPIntegrationTest
             }
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         $result = $v8->executeString('[1, 2, 3].includes(2)');
         self::assertTrue($result);
@@ -249,7 +249,7 @@ class SnapshotTest extends PHPIntegrationTest
             }
         ');
         
-        $v8 = new V8Js('PHP', [], [], true, $snapshot);
+        $v8 = new V8Js('PHP', [], $snapshot);
         
         // Using the snapshot should work, error only thrown when calling the function
         self::assertThrows(V8JsException::class, function() use ($v8) {

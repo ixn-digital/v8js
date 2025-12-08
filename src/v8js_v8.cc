@@ -20,6 +20,7 @@
 #include "v8js_v8.h"
 #include "v8js_timer.h"
 #include "v8js_exceptions.h"
+#include "v8js_object_export.h"
 
 extern "C" {
 #include "ext/date/php_date.h"
@@ -76,6 +77,11 @@ void v8js_v8_init() /* {{{ */
 #endif
 
 	/* Set V8 command line flags (must be done before V8::Initialize()!) */
+	/* Enable --harmony by default for modern JavaScript features */
+	const char* default_flags = "--harmony";
+	v8::V8::SetFlagsFromString(default_flags, static_cast<int>(strlen(default_flags)));
+	
+	/* Apply user-specified flags (if any) which will override defaults */
 	if (v8js_process_globals.v8_flags) {
 		size_t flags_len = strlen(v8js_process_globals.v8_flags);
 
@@ -326,7 +332,7 @@ int v8js_get_properties_hash(v8::Local<v8::Value> jsValue, HashTable *retval, in
 
 		v8::Local<v8::Object> jsValObject;
 		if (jsVal->IsObject() && !jsVal->IsArrayBufferView() && !jsVal->IsArrayBuffer()
-			&& jsVal->ToObject(v8_context).ToLocal(&jsValObject) && (jsValObject->InternalFieldCount() == 2)) {
+			&& jsVal->ToObject(v8_context).ToLocal(&jsValObject) && v8js_is_valid_wrapped_object(jsValObject)) {
 			/* This is a PHP object, passed to JS and back. */
 			zend_object *object = reinterpret_cast<zend_object *>(jsValObject->GetAlignedPointerFromInternalField(1));
 			ZVAL_OBJ(&value, object);

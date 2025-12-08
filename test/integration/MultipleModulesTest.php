@@ -1,6 +1,6 @@
 <?php
 /**
- * Test loading multiple modules in a single V8Js instance
+ * Test loading multiple ES modules in a single V8Js instance
  */
 
 require_once __DIR__ . '/../PHPIntegrationTest.php';
@@ -17,34 +17,32 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'math' => 'exports.add = (a, b) => a + b;',
-            'string' => 'exports.concat = (a, b) => a + b;',
-            'array' => 'exports.sum = (arr) => arr.reduce((a, b) => a + b, 0);',
+            'math.mjs' => 'export const add = (a, b) => a + b;',
+            'string.mjs' => 'export const concat = (a, b) => a + b;',
+            'array.mjs' => 'export const sum = (arr) => arr.reduce((a, b) => a + b, 0);',
         ];
         
         $v8->setModuleLoader(function($module) use ($modules) {
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var math = require("math");
-            var str = require("string");
-            var arr = require("array");
+        $ns = $v8->executeModule('
+            import { add } from "math.mjs";
+            import { concat } from "string.mjs";
+            import { sum } from "array.mjs";
             
-            [
-                math.add(2, 3),
-                str.concat("Hello", "World"),
-                arr.sum([1, 2, 3, 4, 5])
-            ];
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+            export const addResult = add(2, 3);
+            export const concatResult = concat("Hello", "World");
+            export const sumResult = sum([1, 2, 3, 4, 5]);
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals(5, $result[0]);
-        self::assertEquals('HelloWorld', $result[1]);
-        self::assertEquals(15, $result[2]);
+        self::assertEquals(5, $ns['addResult']);
+        self::assertEquals('HelloWorld', $ns['concatResult']);
+        self::assertEquals(15, $ns['sumResult']);
     }
     
     /**
-     * Test module caching - same module required twice
+     * Test module caching - same module imported twice
      */
     public static function testModuleCaching()
     {
@@ -54,17 +52,17 @@ class MultipleModulesTest extends PHPIntegrationTest
         
         $v8 = new V8Js();
         $v8->setModuleLoader(function($module) use (&$loadCount) {
-            if ($module === 'cached') {
+            if ($module === 'cached.mjs') {
                 $loadCount++;
-                return 'exports.value = 42;';
+                return 'export const value = 42;';
             }
             return null;
         });
         
-        $v8->executeString('
-            var mod1 = require("cached");
-            var mod2 = require("cached");
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $v8->executeModule('
+            import { value as v1 } from "cached.mjs";
+            import { value as v2 } from "cached.mjs";
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
         // Module loader should only be called once due to caching
         self::assertEquals(1, $loadCount);
@@ -80,28 +78,28 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if ($module === 'stateful') {
+            if ($module === 'stateful.mjs') {
                 return '
-                    var state = { counter: 0 };
-                    exports.increment = function() { state.counter++; };
-                    exports.get = function() { return state.counter; };
+                    let state = { counter: 0 };
+                    export const increment = () => { state.counter++; };
+                    export const get = () => state.counter;
                 ';
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var mod1 = require("stateful");
-            var mod2 = require("stateful");
+        $ns = $v8->executeModule('
+            import { increment as inc1, get as get1 } from "stateful.mjs";
+            import { increment as inc2, get as get2 } from "stateful.mjs";
             
-            mod1.increment();
-            mod1.increment();
+            inc1();
+            inc1();
             
-            // mod2 should share the same state
-            mod2.get();
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+            // Both imports should share the same state
+            export const count = get2();
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals(2, $result);
+        self::assertEquals(2, $ns['count']);
     }
     
     /**
@@ -114,10 +112,10 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'util' => 'exports.double = (x) => x * 2;',
-            'calculator' => '
-                var util = require("util");
-                exports.compute = (x) => util.double(x) + 10;
+            'util.mjs' => 'export const double = (x) => x * 2;',
+            'calculator.mjs' => '
+                import { double } from "util.mjs";
+                export const compute = (x) => double(x) + 10;
             ',
         ];
         
@@ -125,12 +123,12 @@ class MultipleModulesTest extends PHPIntegrationTest
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var calc = require("calculator");
-            calc.compute(5);
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { compute } from "calculator.mjs";
+            export const result = compute(5);
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals(20, $result); // (5 * 2) + 10
+        self::assertEquals(20, $ns['result']); // (5 * 2) + 10
     }
     
     /**
@@ -143,15 +141,15 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'a' => '
-                exports.name = "moduleA";
-                var b = require("b");
-                exports.getBName = function() { return b.name; };
+            'a.mjs' => '
+                export const name = "moduleA";
+                import { name as bName } from "b.mjs";
+                export const getBName = () => bName;
             ',
-            'b' => '
-                exports.name = "moduleB";
-                var a = require("a");
-                exports.getAName = function() { return a.name; };
+            'b.mjs' => '
+                export const name = "moduleB";
+                import { name as aName } from "a.mjs";
+                export const getAName = () => aName;
             ',
         ];
         
@@ -159,16 +157,19 @@ class MultipleModulesTest extends PHPIntegrationTest
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var a = require("a");
-            var b = require("b");
-            [a.name, b.name, a.getBName(), b.getAName()];
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { name as aName, getBName } from "a.mjs";
+            import { name as bName, getAName } from "b.mjs";
+            export const aNameValue = aName;
+            export const bNameValue = bName;
+            export const bFromA = getBName();
+            export const aFromB = getAName();
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals('moduleA', $result[0]);
-        self::assertEquals('moduleB', $result[1]);
-        self::assertEquals('moduleB', $result[2]);
-        self::assertEquals('moduleA', $result[3]);
+        self::assertEquals('moduleA', $ns['aNameValue']);
+        self::assertEquals('moduleB', $ns['bNameValue']);
+        self::assertEquals('moduleB', $ns['bFromA']);
+        self::assertEquals('moduleA', $ns['aFromB']);
     }
     
     /**
@@ -181,27 +182,33 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $v8->setModuleLoader(function($module) {
-            if (preg_match('/^module(\d+)$/', $module, $matches)) {
+            if (preg_match('/^module(\d+)\.mjs$/', $module, $matches)) {
                 $num = $matches[1];
-                return "exports.value = {$num};";
+                return "export const value = {$num};";
             }
             return null;
         });
         
-        $result = $v8->executeString('
-            var sum = 0;
-            for (var i = 1; i <= 10; i++) {
-                var mod = require("module" + i);
-                sum += mod.value;
-            }
-            sum;
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { value as v1 } from "module1.mjs";
+            import { value as v2 } from "module2.mjs";
+            import { value as v3 } from "module3.mjs";
+            import { value as v4 } from "module4.mjs";
+            import { value as v5 } from "module5.mjs";
+            import { value as v6 } from "module6.mjs";
+            import { value as v7 } from "module7.mjs";
+            import { value as v8 } from "module8.mjs";
+            import { value as v9 } from "module9.mjs";
+            import { value as v10 } from "module10.mjs";
+            
+            export const sum = v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + v9 + v10;
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals(55, $result); // Sum of 1..10
+        self::assertEquals(55, $ns['sum']); // Sum of 1..10
     }
     
     /**
-     * Test module with nested requires
+     * Test module with nested imports
      */
     public static function testNestedRequires()
     {
@@ -210,16 +217,16 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'level1' => '
-                exports.load = function() {
-                    return require("level2").value;
-                };
+            'level1.mjs' => '
+                import { value } from "level2.mjs";
+                export const load = () => value;
             ',
-            'level2' => '
-                exports.value = require("level3").data;
+            'level2.mjs' => '
+                import { data } from "level3.mjs";
+                export const value = data;
             ',
-            'level3' => '
-                exports.data = "deep";
+            'level3.mjs' => '
+                export const data = "deep";
             ',
         ];
         
@@ -227,16 +234,16 @@ class MultipleModulesTest extends PHPIntegrationTest
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var mod = require("level1");
-            mod.load();
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { load } from "level1.mjs";
+            export const result = load();
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals('deep', $result);
+        self::assertEquals('deep', $ns['result']);
     }
     
     /**
-     * Test module exports object vs module.exports
+     * Test named exports vs default export
      */
     public static function testExportsVsModuleExports()
     {
@@ -245,21 +252,27 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'exports' => 'exports.a = 1; exports.b = 2;',
-            'module_exports' => 'module.exports = { x: 10, y: 20 };',
+            'named.mjs' => 'export const a = 1; export const b = 2;',
+            'default.mjs' => 'export default { x: 10, y: 20 };',
         ];
         
         $v8->setModuleLoader(function($module) use ($modules) {
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var exp = require("exports");
-            var mod = require("module_exports");
-            [exp.a, exp.b, mod.x, mod.y];
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { a, b } from "named.mjs";
+            import mod from "default.mjs";
+            export const val1 = a;
+            export const val2 = b;
+            export const val3 = mod.x;
+            export const val4 = mod.y;
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals([1, 2, 10, 20], $result);
+        self::assertEquals(1, $ns['val1']);
+        self::assertEquals(2, $ns['val2']);
+        self::assertEquals(10, $ns['val3']);
+        self::assertEquals(20, $ns['val4']);
     }
     
     /**
@@ -277,18 +290,18 @@ class MultipleModulesTest extends PHPIntegrationTest
         };
         
         $modules = [
-            'eager' => 'PHP.track("eager"); exports.value = 1;',
-            'lazy' => 'PHP.track("lazy"); exports.value = 2;',
+            'eager.mjs' => 'PHP.track("eager"); export const value = 1;',
+            'lazy.mjs' => 'PHP.track("lazy"); export const value = 2;',
         ];
         
         $v8->setModuleLoader(function($module) use ($modules) {
             return $modules[$module] ?? null;
         });
         
-        // Only require eager module
-        $v8->executeString('
-            var eager = require("eager");
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        // Only import eager module
+        $v8->executeModule('
+            import { value } from "eager.mjs";
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
         // Only eager should have been executed
         self::assertEquals(['eager'], $executed);
@@ -304,20 +317,22 @@ class MultipleModulesTest extends PHPIntegrationTest
         $v8 = new V8Js();
         
         $modules = [
-            'mod1' => 'var secret = "module1"; exports.get = function() { return secret; };',
-            'mod2' => 'var secret = "module2"; exports.get = function() { return secret; };',
+            'mod1.mjs' => 'const secret = "module1"; export const get = () => secret;',
+            'mod2.mjs' => 'const secret = "module2"; export const get = () => secret;',
         ];
         
         $v8->setModuleLoader(function($module) use ($modules) {
             return $modules[$module] ?? null;
         });
         
-        $result = $v8->executeString('
-            var mod1 = require("mod1");
-            var mod2 = require("mod2");
-            [mod1.get(), mod2.get()];
-        ', 'main.js', V8Js::FLAG_FORCE_ARRAY);
+        $ns = $v8->executeModule('
+            import { get as get1 } from "mod1.mjs";
+            import { get as get2 } from "mod2.mjs";
+            export const secret1 = get1();
+            export const secret2 = get2();
+        ', 'main.mjs', V8Js::FLAG_FORCE_ARRAY);
         
-        self::assertEquals(['module1', 'module2'], $result);
+        self::assertEquals('module1', $ns['secret1']);
+        self::assertEquals('module2', $ns['secret2']);
     }
 }

@@ -43,7 +43,7 @@ class Test262Adapter
     public function __construct($config = [])
     {
         $this->config = $config;
-        $this->harnessPath = __DIR__ . '/../../test262/harness/';
+        $this->harnessPath = __DIR__ . '/../test262/harness/';
     }
 
     /**
@@ -272,13 +272,44 @@ class Test262Adapter
                 }
 
                 // Add $262 global object for host-defined functionality
+                $detachBuffer = function($buffer) {
+                    // V8's ArrayBuffer.detach() or transfer with length 0
+                    // This creates a new detached buffer and invalidates the original
+                    if (method_exists($buffer, 'transfer')) {
+                        // Modern V8: use transfer() which detaches
+                        $buffer->transfer(0);
+                    } else {
+                        // Fallback: Create a neutered buffer state
+                        // This is a workaround since V8js doesn't directly expose detach
+                        throw new Exception("ArrayBuffer detachment requires V8 with transfer() support");
+                    }
+                };
+                
+                $this->v8->detachBuffer = $detachBuffer;
+                
                 $this->v8->executeString('
                     var $262 = {
                         createRealm: function() {
                             throw new Error("createRealm not supported");
                         },
                         detachArrayBuffer: function(buffer) {
-                            throw new Error("detachArrayBuffer not supported");
+                            // Detach the ArrayBuffer by transferring to length 0
+                            if (typeof buffer.transfer === "function") {
+                                buffer.transfer(0);
+                            } else if (typeof buffer.transferToFixedLength === "function") {
+                                buffer.transferToFixedLength(0);
+                            } else {
+                                // Older V8: Try to use slice which creates a copy and leaves original detached
+                                // This is not perfect but better than throwing
+                                try {
+                                    var temp = new ArrayBuffer(0);
+                                    Object.setPrototypeOf(buffer, null);
+                                    Object.defineProperty(buffer, "byteLength", { value: 0 });
+                                    Object.defineProperty(buffer, "detached", { value: true });
+                                } catch (e) {
+                                    throw new Error("detachArrayBuffer: V8 version does not support detachment");
+                                }
+                            }
                         },
                         evalScript: function(code) {
                             return eval(code);

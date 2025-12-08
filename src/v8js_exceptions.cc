@@ -17,6 +17,7 @@
 #endif
 
 #include "php_v8js_macros.h"
+#include "v8js_object_export.h"
 
 extern "C" {
 #include "ext/date/php_date.h"
@@ -94,7 +95,7 @@ void v8js_create_script_exception(zval *return_value, v8::Isolate *isolate, v8::
 		}
 
 		v8::Local<v8::Object> error_object;
-		if(try_catch->Exception()->IsObject() && try_catch->Exception()->ToObject(context).ToLocal(&error_object) && error_object->InternalFieldCount() == 2) {
+		if(try_catch->Exception()->IsObject() && try_catch->Exception()->ToObject(context).ToLocal(&error_object) && v8js_is_valid_wrapped_object(error_object)) {
 			zend_object *php_exception = reinterpret_cast<zend_object *>(error_object->GetAlignedPointerFromInternalField(1));
 
 			zend_class_entry *exception_ce = zend_exception_get_default();

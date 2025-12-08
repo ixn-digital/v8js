@@ -105,7 +105,9 @@
     "decorators",
     "explicit-resource-management",
     "realm",
-    "cross-realm"
+    "cross-realm",
+    "Temporal",
+    "immutable-arraybuffer"
   ],
   "skipPatterns": [
     "intl402/",

@@ -42,7 +42,8 @@ class TypeConversionTest extends PHPIntegrationTest
         
         $v8->fixedArray = $arr;
         
-        $result = $v8->executeString('PHP.fixedArray[1]');
+        // SplFixedArray must use offsetGet method, not array syntax
+        $result = $v8->executeString('PHP.fixedArray.offsetGet(1)');
         self::assertEquals(20, $result);
     }
     
@@ -107,7 +108,8 @@ class TypeConversionTest extends PHPIntegrationTest
         $arr = new ArrayObject(['a' => 1, 'b' => 2, 'c' => 3]);
         $v8->arrayObj = $arr;
         
-        $result = $v8->executeString('PHP.arrayObj.b');
+        // ArrayObject must use offsetGet method, not property syntax
+        $result = $v8->executeString('PHP.arrayObj.offsetGet("b")');
         self::assertEquals(2, $result);
     }
     

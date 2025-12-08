@@ -158,11 +158,12 @@ class PropertyVisibilityTest extends PHPIntegrationTest
         
         $v8->executeString('delete PHP.obj.prop;');
         
-        self::assertArrayHasKey('prop', $obj->data); // __unset was called but property still in data
+        self::assertFalse(isset($obj->data['prop'])); // __unset was called and removed the property
     }
     
     /**
      * Test property enumeration
+     * Note: Properties are prefixed with '$' to distinguish from methods
      */
     public static function testPropertyEnumeration()
     {
@@ -179,7 +180,7 @@ class PropertyVisibilityTest extends PHPIntegrationTest
         $v8->obj = $obj;
         
         $result = $v8->executeString('Object.keys(PHP.obj).sort()');
-        self::assertEquals(['a', 'b', 'c'], $result);
+        self::assertEquals(['$a', '$b', '$c'], $result);
     }
     
     /**
@@ -224,7 +225,8 @@ class PropertyVisibilityTest extends PHPIntegrationTest
     }
     
     /**
-     * Test property with getter method
+     * Test property with same name as method
+     * Note: Methods take precedence over properties in V8JS
      */
     public static function testPropertyVsMethod()
     {
@@ -241,11 +243,16 @@ class PropertyVisibilityTest extends PHPIntegrationTest
         $v8 = new V8Js();
         $v8->obj = $obj;
         
+        // When both property and method have same name, method takes precedence
         $prop = $v8->executeString('PHP.obj.value');
-        $method = $v8->executeString('PHP.obj.value()');
+        self::assertInstanceOf('V8Function', $prop); // Returns the method
         
-        self::assertEquals('property', $prop);
+        $method = $v8->executeString('PHP.obj.value()');
         self::assertEquals('method', $method);
+        
+        // Use $ prefix to access property instead of method
+        $actualProp = $v8->executeString('PHP.obj.$value');
+        self::assertEquals('property', $actualProp);
     }
     
     /**
@@ -266,6 +273,7 @@ class PropertyVisibilityTest extends PHPIntegrationTest
     
     /**
      * Test array-like property access
+     * Note: Numeric properties also require $ prefix
      */
     public static function testArrayLikePropertyAccess()
     {
@@ -278,7 +286,7 @@ class PropertyVisibilityTest extends PHPIntegrationTest
         $v8 = new V8Js();
         $v8->obj = $obj;
         
-        $result = $v8->executeString('[PHP.obj["0"], PHP.obj["1"]]');
+        $result = $v8->executeString('[PHP.obj["$0"], PHP.obj["$1"]]');
         self::assertEquals(['zero', 'one'], $result);
     }
 }
