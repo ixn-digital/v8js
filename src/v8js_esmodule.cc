@@ -30,7 +30,7 @@ v8::MaybeLocal<v8::Module> v8js_module_resolve_callback(
 	v8::Local<v8::FixedArray> import_attributes,
 	v8::Local<v8::Module> referrer
 ) {
-	v8::Isolate *isolate = context->GetIsolate();
+	v8::Isolate *isolate = v8::Isolate::GetCurrent();
 	v8js_ctx *c = (v8js_ctx *) isolate->GetData(0);
 
 	v8::String::Utf8Value specifier_str(isolate, specifier);
@@ -361,7 +361,7 @@ v8::MaybeLocal<v8::Promise> v8js_module_dynamic_import_callback(
 	v8::Local<v8::String> specifier,
 	v8::Local<v8::FixedArray> import_attributes
 ) {
-	v8::Isolate *isolate = context->GetIsolate();
+	v8::Isolate *isolate = v8::Isolate::GetCurrent();
 	v8js_ctx *c = (v8js_ctx *) isolate->GetData(0);
 
 	// Create a promise resolver

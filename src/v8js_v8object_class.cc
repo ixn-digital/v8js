@@ -116,7 +116,7 @@ static int v8js_v8object_has_property(zend_object *object, zend_string *member, 
 	if (jsVal->IsString() && retval && jsVal->ToString(v8_context).ToLocal(&str) && str->Length() == 1)
 	{
 		uint16_t c = 0;
-		str->Write(isolate, &c, 0, 1);
+		str->WriteV2(isolate, 0, 1, &c);
 		if (c == '0')
 		{
 			retval = false;

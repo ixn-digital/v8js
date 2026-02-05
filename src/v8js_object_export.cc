@@ -498,7 +498,7 @@ static void v8js_named_property_enumerator(const v8::PropertyCallbackInfo<v8::Ar
 	v8::Isolate *isolate = info.GetIsolate();
 	v8::Local<v8::Context> v8_context = isolate->GetEnteredOrMicrotaskContext();
 
-	v8::Local<v8::Object> self = info.Holder();
+	v8::Local<v8::Object> self = info.HolderV2();
 	v8::Local<v8::Array> result = v8::Array::New(isolate, 0);
 	uint32_t result_len = 0;
 
@@ -1103,7 +1103,7 @@ v8::Local<v8::Value> v8js_named_property_callback(v8::Isolate *isolate, v8::Loca
 
 static V8JS_INTERCEPTED v8js_named_property_getter(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Value> &info) /* {{{ */
 {
-	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.Holder(), property, V8JS_PROP_GETTER);
+	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.HolderV2(), property, V8JS_PROP_GETTER);
 
 	if (r.IsEmpty())
 	{
@@ -1119,7 +1119,7 @@ static V8JS_INTERCEPTED v8js_named_property_getter(v8::Local<v8::Name> property,
 
 static V8JS_INTERCEPTED v8js_named_property_setter(v8::Local<v8::Name> property, v8::Local<v8::Value> value, const V8JS_SETTER_PROPERTY_CALLBACK_INFO &info) /* {{{ */
 {
-	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.Holder(), property, V8JS_PROP_SETTER, value);
+	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.HolderV2(), property, V8JS_PROP_SETTER, value);
 #if PHP_V8_HAS_INTERCEPTED
 	return r.IsEmpty() ? v8::Intercepted::kNo : v8::Intercepted::kYes;
 #else
@@ -1130,7 +1130,7 @@ static V8JS_INTERCEPTED v8js_named_property_setter(v8::Local<v8::Name> property,
 
 static V8JS_INTERCEPTED v8js_named_property_query(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Integer> &info) /* {{{ */
 {
-	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.Holder(), property, V8JS_PROP_QUERY);
+	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.HolderV2(), property, V8JS_PROP_QUERY);
 	if (r.IsEmpty())
 	{
 		return V8JS_INTERCEPTED_NO;
@@ -1152,7 +1152,7 @@ static V8JS_INTERCEPTED v8js_named_property_query(v8::Local<v8::Name> property, 
 
 static V8JS_INTERCEPTED v8js_named_property_deleter(v8::Local<v8::Name> property, const v8::PropertyCallbackInfo<v8::Boolean> &info) /* {{{ */
 {
-	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.Holder(), property, V8JS_PROP_DELETER);
+	v8::Local<v8::Value> r = v8js_named_property_callback(info.GetIsolate(), info.HolderV2(), property, V8JS_PROP_DELETER);
 	if (r.IsEmpty())
 	{
 		return V8JS_INTERCEPTED_NO;
@@ -1218,7 +1218,7 @@ static v8::MaybeLocal<v8::Object> v8js_wrap_object(v8::Isolate *isolate, zend_cl
 #else
 			v8::GenericNamedPropertyGetterCallback getter = v8js_named_property_getter;
 #endif
-			v8::GenericNamedPropertyEnumeratorCallback enumerator = v8js_named_property_enumerator;
+			v8::NamedPropertyEnumeratorCallback enumerator = v8js_named_property_enumerator;
 
 			/* Check for ArrayAccess object */
 			if (V8JSG(use_array_access) && ce)
